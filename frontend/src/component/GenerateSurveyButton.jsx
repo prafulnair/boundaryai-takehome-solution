@@ -18,6 +18,8 @@ export default function GenerateSurveyButton({ onLoaded }) {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      // after: const data = await res.json();
+      localStorage.setItem("lastSurvey", JSON.stringify(data));
       onLoaded?.(data); // { id, title, questions[], cached }
     } catch (e) {
       console.error(e);

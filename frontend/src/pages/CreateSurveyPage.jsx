@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "../component/DashboardLayout";
 import CreateSurvey from "../component/CreateSurvey";
 import CreateSurveySidebar from "../component/CreateSurveySidebar";
@@ -7,6 +7,12 @@ import GenerateSurveyButton from "../component/GenerateSurveyButton";
 
 const CreateSurveyPage = ({ surveySeriesId = "defaultId" }) => {
   const [generatedSurvey, setGeneratedSurvey] = useState(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("lastSurvey");
+      if (raw) setGeneratedSurvey(JSON.parse(raw));
+    } catch {}
+  }, []);
 
   return (
     <DashboardLayout>
