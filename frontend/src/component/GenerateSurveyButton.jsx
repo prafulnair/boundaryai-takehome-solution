@@ -18,9 +18,14 @@ export default function GenerateSurveyButton({ onLoaded }) {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      // after: const data = await res.json();
+
+      // tag with the prompt so downstream can save per prompt
+      data._prompt = description;
+
+      // keep your existing “lastSurvey” fallback
       localStorage.setItem("lastSurvey", JSON.stringify(data));
-      onLoaded?.(data); // { id, title, questions[], cached }
+
+      onLoaded?.(data); // { id, title, questions[], cached, _prompt }
     } catch (e) {
       console.error(e);
       alert("Failed to generate survey. Is the backend running?");

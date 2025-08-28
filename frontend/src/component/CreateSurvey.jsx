@@ -4,13 +4,13 @@ import { PlusIcon2 } from "./Icons";
 import QuestionList from "./QuestionList";
 import { motion } from "framer-motion";
 
-const CreateSurvey = ({ initialSurvey }) => { // accept generated survey
+const CreateSurvey = ({ initialSurvey }) => { //  accept generated survey
   const {
     questions,
     defaultQuestionType,
     setSurveyTitle,
     setSurveyDescription,
-    setQuestions,              //use existing setter
+    setQuestions,              //  use existing setter
     surveyTitle,
     surveyDescription,
     addNewQuestion,
@@ -21,51 +21,89 @@ const CreateSurvey = ({ initialSurvey }) => { // accept generated survey
   const [titleError, setTitleError] = useState("");
   const [descriptionError, setDescriptionError] = useState("");
 
-  //  when a generated survey arrives, populate title/desc/questions
+  // per-prompt storage key (fallback to "survey:last")
+  const [storageKey, setStorageKey] = useState("survey:last");
   useEffect(() => {
-    if (!initialSurvey) return;
+    const prompt = initialSurvey && typeof initialSurvey._prompt === "string"
+      ? initialSurvey._prompt.trim().toLowerCase()
+      : null;
+    setStorageKey(prompt ? `survey:${prompt}` : "survey:last");
+  }, [initialSurvey]);
 
-    // 1) title / description (backend doesn’t send description)
-    setSurveyTitle(initialSurvey.title || "");
-    setSurveyDescription("");
-
-    // 2) normalize API questions → app shape
-    const now = Date.now();
-    const toOptionObj = (text, j) => ({ id: now + Math.random() + j, text: String(text ?? "") });
-
-    const normalized = (initialSurvey.questions || []).map((q, i) => {
-      const base = { id: now + i + Math.random(), title: q?.text || "", saved: false };
-
-      switch (q?.type) {
-        case "multiple_choice":
-          return {
-            ...base,
-            type: "multipleChoice",
-            options: (q.options || []).map(toOptionObj),
-          };
-
-        case "rating": {
-          const scale = Math.max(2, Math.min(Number(q.scale) || 5, 10));
-          const opts = Array.from({ length: scale }, (_, k) => toOptionObj(String(k + 1), k));
-          return {
-            ...base,
-            type: "singleChoice",   // renderable with your existing single-choice UI
-            options: opts,
-          };
+  //  load saved edits (if any) for this key; otherwise map API → internal
+  useEffect(() => {
+    // try restore edited internal state
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (saved && typeof saved === "object" && Array.isArray(saved.questions)) {
+          setSurveyTitle(saved.title || "");
+          setSurveyDescription(saved.description || "");
+          setQuestions(saved.questions); // already internal shape
+          return; // restored edited version
         }
-
-        case "open_text":
-        default:
-          return {
-            ...base,
-            type: "shortAnswer",
-            options: [],
-          };
       }
-    });
+    } catch {
+      // ignore parse errors and fall through
+    }
 
-    setQuestions(normalized); //single atomic replace
-  }, [initialSurvey, setSurveyTitle, setSurveyDescription, setQuestions]);
+    // no saved edits — load from the API payload (map backend → internal)
+    if (initialSurvey) {
+      setSurveyTitle(initialSurvey.title || "");
+      setSurveyDescription("");
+
+      const now = Date.now();
+      const toOptionObj = (text, j) => ({ id: now + Math.random() + j, text: String(text ?? "") });
+
+      const normalized = (initialSurvey.questions || []).map((q, i) => {
+        const base = { id: now + i + Math.random(), title: q?.text || "", saved: false };
+
+        switch (q?.type) {
+          case "multiple_choice":
+            return {
+              ...base,
+              type: "multipleChoice",
+              options: (q.options || []).map(toOptionObj),
+            };
+
+          case "rating": {
+            const scale = Math.max(2, Math.min(Number(q.scale) || 5, 10));
+            const opts = Array.from({ length: scale }, (_, k) => toOptionObj(String(k + 1), k));
+            return {
+              ...base,
+              type: "singleChoice",   // reuse your single-choice UI for ratings
+              options: opts,
+            };
+          }
+
+          case "open_text":
+          default:
+            return {
+              ...base,
+              type: "shortAnswer",
+              options: [],
+            };
+        }
+      });
+
+      setQuestions(normalized);
+    }
+  }, [initialSurvey, storageKey, setSurveyTitle, setSurveyDescription, setQuestions]);
+
+  // autosave current internal state on any edit
+  useEffect(() => {
+    try {
+      const payload = {
+        title: surveyTitle || "",
+        description: surveyDescription || "",
+        questions, // internal shape; ideal for restoring
+      };
+      localStorage.setItem(storageKey, JSON.stringify(payload));
+    } catch {
+      // ignore write errors
+    }
+  }, [surveyTitle, surveyDescription, questions, storageKey]);
 
   useEffect(() => {
     setTitleLength(surveyTitle?.length || 0);
