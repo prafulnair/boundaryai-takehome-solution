@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Literal, Optional
@@ -93,16 +93,28 @@ def heuristic_generate(desc: str) -> dict:
     questions.append({"type": "open_text", "text": "What is one thing we should change first?"})
     return {"title": title, "questions": questions}
 
+
 @app.post("/api/surveys/generate", response_model=GenerateResp)
-def generate(req: GenerateReq):
+def generate(req: GenerateReq, response: Response, force: bool = Query(False)):
+    """
+    If AI_PROVIDER=gemini -> always use Gemini (no heuristic fallback).
+    Set ?force=true to bypass DB cache and overwrite the row for this prompt.
+    """
     prompt = (req.description or "").strip()
     if not prompt:
         raise HTTPException(status_code=400, detail="description is required")
 
+    provider_name = os.getenv("AI_PROVIDER", "heuristic").lower()
+    use_gemini = provider_name == "gemini"
+
     with SessionLocal() as session:
-        # Cache check
-        existing = session.execute(select(SurveyRow).where(SurveyRow.prompt == prompt)).scalars().first()
-        if existing:
+        # Cache hit (unless force=true)
+        existing = session.execute(
+            select(SurveyRow).where(SurveyRow.prompt == prompt)
+        ).scalars().first()
+
+        if existing and not force:
+            response.headers["X-Model-Provider"] = existing.model_name or provider_name
             payload = existing.payload
             return {
                 "id": existing.id,
@@ -111,26 +123,54 @@ def generate(req: GenerateReq):
                 "cached": True,
             }
 
-        # Generate (heuristic for now)
-        payload = heuristic_generate(prompt)
-        # Validate minimally via Pydantic to catch mistakes
-        _validated = GenerateResp(id=0, title=payload["title"], questions=[Question(**q) for q in payload["questions"]], cached=False)
+        # --- Generate (force or miss) ---
+        if use_gemini:
+            # force Gemini; if it fails, surface the error (no silent fallback)
+            try:
+                raw = gemini_generate(prompt)
+            except Exception as e:
+                raise HTTPException(status_code=502, detail=f"gemini_failed: {e}")
+        else:
+            raw = heuristic_generate(prompt)
 
-        row = SurveyRow(prompt=prompt, title=payload["title"], payload=payload, model_name="heuristic")
-        session.add(row)
-        try:
+        payload = _normalize_payload(raw)
+        # validate shape
+        _ = GenerateResp(
+            id=0,
+            title=payload["title"],
+            questions=[Question(**q) for q in payload["questions"]],
+            cached=False,
+        )
+
+        response.headers["X-Model-Provider"] = provider_name
+
+        # Upsert: overwrite existing row if present (when force=true)
+        if existing:
+            existing.title = payload["title"]
+            existing.payload = payload
+            existing.model_name = provider_name
             session.commit()
-        except IntegrityError:
-            session.rollback()
-            existing = session.execute(select(SurveyRow).where(SurveyRow.prompt == prompt)).scalars().first()
-            if existing:
-                payload = existing.payload
-                return {
-                    "id": existing.id,
-                    "title": payload.get("title", existing.title),
-                    "questions": payload.get("questions", []),
-                    "cached": True,
-                }
-            raise
+            session.refresh(existing)
+            return {
+                "id": existing.id,
+                "title": payload["title"],
+                "questions": payload["questions"],
+                "cached": False,
+            }
+
+        # Insert new row
+        row = SurveyRow(
+            prompt=prompt,
+            title=payload["title"],
+            payload=payload,
+            model_name=provider_name,
+        )
+        session.add(row)
+        session.commit()
         session.refresh(row)
-        return {"id": row.id, "title": payload["title"], "questions": payload["questions"], "cached": False}
+        return {
+            "id": row.id,
+            "title": payload["title"],
+            "questions": payload["questions"],
+            "cached": False,
+        }
