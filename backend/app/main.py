@@ -2,11 +2,17 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Literal, Optional
-
+import os
 from .db import engine, SessionLocal
 from .models import Base, SurveyRow
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from dotenv import load_dotenv; load_dotenv()  # pip install python-dotenv
+from .providers.gemini_provider import generate_survey_from_description as gemini_generate
+
+
+def select_generator():
+    return gemini_generate if os.getenv("AI_PROVIDER","heuristic").lower()=="gemini" else heuristic_generate
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -30,6 +36,37 @@ class GenerateResp(BaseModel):
     title: str
     questions: List[Question]
     cached: bool = False
+
+def _normalize_payload(payload: dict) -> dict:
+    """Coerce provider output to {title, questions[]} with our allowed types."""
+    def norm_type(t: str) -> str:
+        t = (t or "").strip().lower().replace("-", "_").replace(" ", "_")
+        if t in {"multiple_choice", "multiplechoice", "multi_choice"}:
+            return "multiple_choice"
+        if t in {"rating", "likert", "scale"}:
+            return "rating"
+        if t in {"open_text", "openended", "open_end", "text"}:
+            return "open_text"
+        return "open_text"
+
+    title = (payload or {}).get("title") or "Generated Survey"
+    out_qs: list[dict] = []
+    for q in (payload or {}).get("questions", []):
+        qt = norm_type(q.get("type"))
+        item = {"type": qt, "text": (q.get("text") or "").strip()}
+        if qt == "rating":
+            try:
+                item["scale"] = max(2, min(int(q.get("scale") or 5), 10))
+            except Exception:
+                item["scale"] = 5
+        if qt == "multiple_choice":
+            opts = q.get("options") or []
+            item["options"] = [str(o) for o in opts if str(o).strip()][:12]  # small guard
+        out_qs.append(item)
+    # Ensure at least one question
+    if not out_qs:
+        out_qs = [{"type": "open_text", "text": "Share your thoughts"}]
+    return {"title": title, "questions": out_qs}
 
 @app.get("/health")
 def health():
