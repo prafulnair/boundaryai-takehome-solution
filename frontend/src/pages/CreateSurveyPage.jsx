@@ -1,9 +1,13 @@
+import { useState } from "react";
 import DashboardLayout from "../component/DashboardLayout";
 import CreateSurvey from "../component/CreateSurvey";
 import CreateSurveySidebar from "../component/CreateSurveySidebar";
 import Header from "../component/Header";
+import GenerateSurveyButton from "../component/GenerateSurveryButton";
 
 const CreateSurveyPage = ({ surveySeriesId = "defaultId" }) => {
+  const [generatedSurvey, setGeneratedSurvey] = useState(null);
+
   return (
     <DashboardLayout>
       <div className="flex flex-col w-full h-full overflow-hidden">
@@ -12,6 +16,7 @@ const CreateSurveyPage = ({ surveySeriesId = "defaultId" }) => {
             <h2 className="text-[26px] font-switzerMedium text-primary">
               Create a New Survey
             </h2>
+              <GenerateSurveyButton onLoaded={setGeneratedSurvey} />
           </Header>
         </div>
         <div className="flex grow w-full overflow-hidden h-full">
