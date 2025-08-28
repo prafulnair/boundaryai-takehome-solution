@@ -3,7 +3,7 @@ import DashboardLayout from "../component/DashboardLayout";
 import CreateSurvey from "../component/CreateSurvey";
 import CreateSurveySidebar from "../component/CreateSurveySidebar";
 import Header from "../component/Header";
-import GenerateSurveyButton from "../component/GenerateSurveryButton";
+import GenerateSurveyButton from "../component/GenerateSurveyButton";
 
 const CreateSurveyPage = ({ surveySeriesId = "defaultId" }) => {
   const [generatedSurvey, setGeneratedSurvey] = useState(null);
@@ -24,7 +24,7 @@ const CreateSurveyPage = ({ surveySeriesId = "defaultId" }) => {
             <div className="block lg:hidden">
               <CreateSurveySidebar surveySeriesId={surveySeriesId} />
             </div>
-            <CreateSurvey />
+             <CreateSurvey initialSurvey={generatedSurvey} /> 
           </div>
           <div className="hidden lg:block min-w-[280px] p-3 max-w-[280px] overflow-auto scrollbar-style h-[calc(100vh-89px)]">
             <CreateSurveySidebar surveySeriesId={surveySeriesId} />

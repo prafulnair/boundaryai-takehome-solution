@@ -10,7 +10,7 @@ const CreateSurvey = ({ initialSurvey }) => { // accept generated survey
     defaultQuestionType,
     setSurveyTitle,
     setSurveyDescription,
-    setQuestions,              //use existing setter instead of replaceQuestions
+    setQuestions,              //use existing setter
     surveyTitle,
     surveyDescription,
     addNewQuestion,
