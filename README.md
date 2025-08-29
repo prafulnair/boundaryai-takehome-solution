@@ -136,13 +136,14 @@ Response (example)
   ],
   "cached": false
 }
+```
 
-Behavior
+# Behavior
 	•	Same description → cached result returned with "cached": true.
 	•	Response includes header: X-Model-Provider: gemini|heuristic.
 	•	Optional query param ?force=true bypasses cache and overwrites stored row.
 
-Status codes
+# Status codes
 	•	200 OK: Survey returned.
 	•	400: Missing or invalid description.
 	•	502: Model provider failed (only when forced and unavailable).
@@ -158,18 +159,23 @@ Status codes
 
 # Setup
 
+```
 git clone <your-repo-url>
 cd <project-folder>
 cp .env.example .env     # Fill in DB creds, API key if using Gemini
+```
 
 # With Poetry
+```
 poetry install
 poetry run uvicorn app.main:app --reload
+```
 
 # Or with pip
+```
 pip install -r requirements.txt
 uvicorn app.main:app --reload
-
+```
 
 ⸻
 
