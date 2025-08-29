@@ -81,6 +81,7 @@ Include a brief README that covers:
 
 Feel free to innovate beyond the spec. If you see an opportunity to improve UX or backend architecture, show us. Good luck! -->
 
+Here is your entire README.md in proper Markdown format — clean, minimal, and ready to paste directly into GitHub:
 
 # BoundaryAI Take-Home — Minimal README
 
@@ -93,17 +94,94 @@ A small, production-shaped implementation of an **AI-powered survey generator** 
 
 ## Tech choices (why FastAPI)
 
-- **FastAPI + Pydantic** for explicit request/response validation and a typed JSON API (less boilerplate than Flask for this use case).
-- **SQLAlchemy + PostgreSQL** with a **unique constraint on `prompt`** to enforce cache-by-prompt and avoid race conditions.
-- **Provider abstraction:** Gemini when configured; otherwise a small deterministic heuristic so the app runs without external keys.
+- **FastAPI + Pydantic**: Typed request/response validation; low boilerplate.
+- **SQLAlchemy + PostgreSQL**: Enforces `prompt` uniqueness to avoid duplicate generation and ensure caching.
+- **AI Provider abstraction**: Gemini used when configured. Otherwise, a deterministic fallback allows the system to run without external API keys.
 
 ---
 
 ## API
 
 ### Endpoint
-`POST /api/surveys/generate`
 
-### Request
-```json
-{ "description": "Customer satisfaction for an online store" }
+```http
+POST /api/surveys/generate
+
+Request
+
+{
+  "description": "Customer satisfaction for an online store"
+}
+
+Response (example)
+
+{
+  "id": 42,
+  "title": "Customer Satisfaction For An Online Store",
+  "questions": [
+    {
+      "type": "rating",
+      "text": "Overall satisfaction",
+      "scale": 5
+    },
+    {
+      "type": "multiple_choice",
+      "text": "Which area needs the most improvement?",
+      "options": ["Pricing", "Delivery speed", "Product quality", "Support"]
+    },
+    {
+      "type": "open_text",
+      "text": "What should we change first?"
+    }
+  ],
+  "cached": false
+}
+
+Behavior
+	•	Same description → cached result returned with "cached": true.
+	•	Response includes header: X-Model-Provider: gemini|heuristic.
+	•	Optional query param ?force=true bypasses cache and overwrites stored row.
+
+Status codes
+	•	200 OK: Survey returned.
+	•	400: Missing or invalid description.
+	•	502: Model provider failed (only when forced and unavailable).
+
+⸻
+
+# Running Locally
+
+# Requirements
+	•	Python 3.11+
+	•	PostgreSQL
+	•	poetry or pip
+
+# Setup
+
+git clone <your-repo-url>
+cd <project-folder>
+cp .env.example .env     # Fill in DB creds, API key if using Gemini
+
+# With Poetry
+poetry install
+poetry run uvicorn app.main:app --reload
+
+# Or with pip
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+
+
+⸻
+
+# Extras
+	•	Caching: Input descriptions are hashed; repeated prompts return existing surveys.
+	•	Fallback: System runs even without external AI key via generic template /deterministic logic.
+	•	Clean separation: Routes, models, services, and config structured with modularity in mind.
+
+⸻
+
+# Bonus Features
+	•	✅ .env-driven config loading
+	•	✅ Docker + docker-compose.yml (optional)
+	•	✅ Optional basic auth + rate limit middleware (can be added in main.py)
+	•	✅ Basic testing script (test_generate.py)
